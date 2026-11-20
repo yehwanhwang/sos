@@ -1,6 +1,10 @@
-// 우리 가족: 나, 그리고 내가 볼 수 있는 가족. 가족이 카톡의 링크를 누르면 이 화면이 열린다.
-// 맨 위에는 지금 할 일이 먼저 온다: 받아 줄 사람, 받아 주길 기다리는 링크, 명절 점검.
-// 처음 쓰는 사람에게는 할 일 네 가지를 차례로 보여 준다(이름 → 내 비상연락처 → 가족 연결 → 급할 때 찾는 길).
+// 우리 가족: 가족이 카톡의 링크를 누르면 이 화면이 열린다. 급할 때 여는 화면이라 가족 목록이 가장 위에 온다.
+//
+//   연결된 가족이 있을 때   받아 줄 사람 → 명절 점검 → 가족 → 기다리는 링크 → 나 → 남은 준비
+//   아직 없을 때(처음)      받아 줄 사람 → 기다리는 링크 → 시작하기(다음 할 일 하나에만 버튼) → 나
+//
+// 준비는 세 가지다(내 비상연락처 → 가족 연결 → 급할 때 찾는 길). 끝낸 것은 다시 보여 주지 않고,
+// 같은 일을 두 군데에 두지 않는다(비어 있는 '나'와 '가족'은 준비 카드가 대신한다).
 import * as api from '../api.js';
 import { h, fill, icon, avatar, sheet, run, toast, share, fmtDateTime } from '../ui.js';
 import { checkedText, names, knockedText, siteUrl } from '../model.js';
@@ -8,6 +12,8 @@ import { row, addRow } from './forms.js';
 
 export async function homeView(page, { home, from, refresh }) {
   const { me, people, requests, waiting, season } = home;
+  const openLinks = home.open_links || 0;
+  const connected = people.length > 0;
   // 방금 보고 돌아온 사람의 줄: 제목이 이 줄의 이름으로 돌아온다
   const cameFrom = /^\/p\/([0-9a-f-]{36})$/.exec(from || '')?.[1];
   const mark = (el, id) => {
@@ -31,7 +37,7 @@ export async function homeView(page, { home, from, refresh }) {
       waiting.map((w) => (w.status === 'pending'
         ? h('div', { class: 'wait' },
           h('p', { class: 'wait-title' }, `${w.from}님이 받아 주면 열려요`),
-          h('p', { class: 'muted' }, '링크를 눌렀다고 카톡으로 알려 주세요. 기다리는 동안 내 비상연락처를 넣어 두면 좋아요.'),
+          h('p', { class: 'muted' }, '링크를 눌렀다고 알려 주면 빨라요.'),
           tellButton(w))
         : h('div', { class: 'wait' },
           h('p', { class: 'wait-title' }, `${w.from}님이 받지 않았어요`),
@@ -48,69 +54,81 @@ export async function homeView(page, { home, from, refresh }) {
       icon('chevron', 'chev'))
     : null;
 
-  // ── 시작하기 ──
+  // ── 준비: 남은 것만 ──
+  // wait: 내가 할 일은 끝났고 가족을 기다리는 중(링크를 보냈거나, 받은 링크를 눌렀다). 다음 할 일로 치지 않는다.
+  // label·hint 는 줄로 보일 때, ask·why·action 은 다음 할 일(버튼이 있는 칸)로 보일 때 쓴다.
   const steps = [
-    { done: true, label: '이름 정하기' },
-    { done: me.count > 0, label: '내 비상연락처 넣기', hint: '연락이 안 될 때 가족이 전화해 볼 분 3~5명', href: '#/add' },
     {
-      done: people.length > 0, label: '가족 연결하기', href: '#/connect',
-      hint: pending.length ? `${names(pending.map((w) => w.from))}님이 받아 주길 기다리고 있어요` : '카톡으로 링크를 보내요',
+      done: me.count > 0, href: '#/add', label: '내 비상연락처 넣기', hint: '가족이 전화해 볼 분 3~5명',
+      ask: '내 비상연락처를 넣어 주세요', why: '연락이 안 될 때 가족이 전화해 볼 분 3~5명이에요.', action: '연락처 넣기',
     },
-    { done: me.prepared, label: '급할 때 바로 찾게 해 두기', hint: '대화방 공지, 전화 앱에 저장', href: '#/prepare' },
+    {
+      done: connected, href: '#/connect', label: '가족 연결하기', hint: '카톡으로 링크를 보내요',
+      ask: '가족을 연결해 주세요', why: '카톡으로 링크를 보내고, 누른 가족을 받아 주면 서로의 비상연락처를 봐요.', action: '가족 연결하기',
+      // 누가 기다리는지는 위의 카드가 이름으로 말한다. 여기서는 지금 어디까지 왔는지만.
+      wait: requests.length ? '위에서 받아 주면 연결돼요'
+        : pending.length ? '받아 주길 기다리고 있어요'
+          : openLinks ? '링크를 보냈어요. 가족이 누르면 여기에 떠요' : '',
+    },
+    {
+      done: me.prepared, href: '#/prepare', label: '급할 때 바로 찾게 해 두기', hint: '대화방 공지, 전화 앱에 저장',
+      ask: '급할 때 바로 찾게 해 두세요', why: '카톡 대화방 공지와 전화 앱에 이 페이지로 오는 길을 만들어요.', action: '해 두기',
+    },
   ];
-  const left = steps.filter((s) => !s.done).length;
-  const checklist = left
-    ? h('section', { class: 'card checklist', 'aria-label': '시작하기' },
+  const todo = steps.filter((s) => !s.done);
+  // 다음 할 일 하나에만 노란 버튼을 준다. 가족이 있으면 가족 목록이, 받아 줄 사람이 있으면 그 카드가 먼저라서 준비는 줄로만 둔다.
+  const now = connected || requests.length ? null : todo.find((s) => !s.wait);
+  const setup = todo.length
+    ? h('section', { class: 'card checklist', 'aria-label': connected ? '남은 준비' : '시작하기' },
       h('div', { class: 'card-head' },
-        h('h2', null, '시작하기'),
-        h('span', { class: 'count' }, h('b', null, String(steps.length - left)), ` / ${steps.length}`)),
-      h('ol', { class: 'list' }, steps.map((s) => {
-        const body = [
-          h('span', { class: 'tick' }, s.done ? icon('check') : null),
+        h('h2', null, connected ? '남은 준비' : '시작하기'),
+        connected ? null : h('span', { class: 'count' }, h('b', null, String(steps.length - todo.length)), ` / ${steps.length}`)),
+      h('ol', { class: 'list' }, todo.map((s) => h('li', null, s === now
+        ? h('div', { class: 'step-now' },
+          h('p', { class: 'row-title' }, s.ask),
+          h('p', { class: 'row-sub' }, s.why),
+          h('a', { class: 'btn block', href: s.href }, s.action))
+        : h('a', { class: `row step ${s.wait ? 'waiting' : ''}`.trim(), href: s.href },
+          h('span', { class: 'tick' }),
           h('span', { class: 'row-text' },
-            h('span', { class: 'row-title' }, s.label, s.done ? h('span', { class: 'sr' }, ' (마침)') : null),
-            !s.done && s.hint ? h('span', { class: 'row-sub' }, s.hint) : null),
-          s.done ? null : icon('chevron', 'chev'),
-        ];
-        return h('li', null, s.done ? h('div', { class: 'row step done' }, body) : h('a', { class: 'row step', href: s.href }, body));
-      })))
+            h('span', { class: 'row-title' }, s.label),
+            h('span', { class: 'row-sub' }, s.wait || s.hint)),
+          icon('chevron', 'chev'))))))
     : null;
 
-  const meRow = mark(row({
-    href: `#/p/${me.id}`, lead: avatar(me.name, 'me'), title: me.name, morph: true,
-    // 좁은 폰에서는 '내 비상연락처 3명 ·' / '10월 18일에 확인' 두 덩어리로만 나뉜다
-    sub: me.count
-      ? h('span', null, h('span', { class: 'keep' }, `내 비상연락처 ${me.count}명 ·`), ' ', h('span', { class: 'keep' }, checkedText(me.checked)))
-      : '내 비상연락처가 아직 비어 있어요',
-  }), me.id);
+  // ── 가족 ──
+  const family = connected
+    ? h('section', { class: 'section' },
+      h('h2', { class: 'section-title' }, '가족', h('span', { class: 'count' }, ` ${people.length}`)),
+      h('div', { class: 'card' },
+        h('ul', { class: 'list', 'aria-label': '연결된 가족' },
+          people.map((p) => h('li', null, mark(row({
+            href: `#/p/${p.id}`, lead: avatar(p.name), title: p.name, morph: true,
+            sub: p.count ? h('span', { class: p.checked.stale ? 'stale' : null }, checkedText(p.checked)) : '아직 비어 있어요',
+            trail: p.count ? `${p.count}명` : null,
+          }), p.id))),
+          h('li', null, addRow('가족 연결하기', '#/connect', openLinks ? `보낸 링크 ${openLinks}개가 열려 있어요` : '')))))
+    : null;
 
-  const family = h('ul', { class: 'list', 'aria-label': '연결된 가족' },
-    people.map((p) => h('li', null, mark(row({
-      href: `#/p/${p.id}`, lead: avatar(p.name), title: p.name, morph: true,
-      sub: p.count ? h('span', { class: p.checked.stale ? 'stale' : null }, checkedText(p.checked)) : '아직 비어 있어요',
-      trail: p.count ? `${p.count}명` : null,
-    }), p.id))),
-    people.length ? null : h('li', { class: 'empty' },
-      h('p', { class: 'empty-title' }, '아직 연결된 가족이 없어요'),
-      h('p', null, '가족에게 카톡으로 링크를 보내 연결하세요. 연결된 사람끼리만 서로의 목록을 봐요.')),
-    h('li', null, addRow('가족 연결하기', '#/connect')));
+  // ── 나(비어 있으면 준비 카드의 '내 비상연락처 넣기'가 대신한다) ──
+  const mine = me.count
+    ? h('section', { class: 'section' },
+      h('h2', { class: 'section-title' }, '나'),
+      h('div', { class: 'card' }, h('ul', { class: 'list' }, h('li', null, mark(row({
+        href: `#/p/${me.id}`, lead: avatar(me.name, 'me'), title: me.name, morph: true,
+        // 좁은 폰에서는 '내 비상연락처 3명 ·' / '10월 18일에 확인' 두 덩어리로만 나뉜다
+        sub: h('span', null, h('span', { class: 'keep' }, `내 비상연락처 ${me.count}명 ·`), ' ', h('span', { class: 'keep' }, checkedText(me.checked))),
+      }), me.id)))))
+    : null;
 
   fill(page,
     h('header', { class: 'top row-top' },
       h('div', { class: 'grow' },
         h('h1', null, '우리 가족'),
-        people.length ? h('p', { class: 'sub' }, '연락이 안 되는 가족을 누르세요') : null),
+        connected ? h('p', { class: 'sub' }, '연락이 안 되는 가족을 누르세요') : null),
       h('a', { class: 'chip-btn', href: '#/manage' }, '설정')),
     asking,
-    waitingCard,
-    checkCard,
-    checklist,
-    h('section', { class: 'section' },
-      h('h2', { class: 'section-title' }, '나'),
-      h('div', { class: 'card' }, h('ul', { class: 'list' }, h('li', null, meRow)))),
-    h('section', { class: 'section' },
-      h('h2', { class: 'section-title' }, '가족', people.length ? h('span', { class: 'count' }, ` ${people.length}`) : null),
-      h('div', { class: 'card' }, family)));
+    connected ? [checkCard, family, waitingCard, mine, setup] : [waitingCard, checkCard, setup, mine]);
 }
 
 /** "카톡으로 알리기": 링크를 보낸 사람에게 눌렀다고 알린다 */

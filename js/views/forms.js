@@ -35,8 +35,10 @@ export function row({ href, onclick, lead = null, title, sub = '', trail = null,
     : h('button', { class: cl, type: 'button', onclick }, body);
 }
 
-/** 목록 끝의 '＋ 무엇 하기' 줄 */
-export const addRow = (label, href) => h('a', { class: 'row add', href }, h('span', { class: 'add-mark' }, icon('plus')), h('span', { class: 'row-title' }, label));
+/** 목록 끝의 '＋ 무엇 하기' 줄. sub: 지금 상태 한 줄(예: 보낸 링크가 열려 있어요) */
+export const addRow = (label, href, sub = '') => h('a', { class: 'row add', href },
+  h('span', { class: 'add-mark' }, icon('plus')),
+  h('span', { class: 'row-text' }, h('span', { class: 'row-title' }, label), sub ? h('span', { class: 'row-sub' }, sub) : null));
 
 /**
  * 이름표가 붙은 입력 칸. 도움말은 이름표와 따로 두고 aria-describedby 로 잇는다

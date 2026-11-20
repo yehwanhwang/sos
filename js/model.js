@@ -39,6 +39,10 @@ export function checkedText(checked, now = new Date()) {
 export const askCheckText = (name) =>
   `[${NAME}] ${name}님, 연락이 안 될 때 전화할 분들이 그대로인지 한 번 봐 주세요. 링크를 누르면 바로 열려요.`;
 
+/** 넣어 달라는 부탁 글(비어 있는 목록을 본 가족이 보낸다) */
+export const askAddText = (name) =>
+  `[${NAME}] ${name}님, 연락이 안 될 때 전화할 분들이 아직 비어 있어요. 링크를 눌러 3~5명만 넣어 주세요.`;
+
 /** 받아 주기를 기다리는 사람이 보내는 글 */
 export const knockedText = (from) => `[${NAME}] ${from}님, 보내 준 링크를 눌렀어요. 받아 주세요.`;
 

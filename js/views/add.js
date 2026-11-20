@@ -1,10 +1,12 @@
-// 연락처 넣기. 폰마다 방법이 다르다.
+// 연락처 넣기. 폰마다 방법이 다르고, 화면에는 그 폰에서 가장 쉬운 방법 하나를 먼저 보여 준다.
 //  안드로이드 크롬   폰의 연락처 화면을 띄워 여러 명을 고른다(Contact Picker). 고른 사람만 넘어온다.
+//                   직접 적는 칸은 '직접 적기'를 눌러야 펼쳐진다.
 //  아이폰 사파리     이름 칸을 누르면 키보드 위의 '연락처 자동 완성'으로 한 명씩 채운다.
-//  카카오톡 안 화면  고르기가 안 되므로 바깥 브라우저로 여는 버튼을 보여 준다.
-//  어디서나          직접 적거나, 카톡으로 받은 "이름 010-…" 글을 이름 칸에 붙여 넣는다.
+//  카카오톡 안 화면  고르기가 안 되므로 바깥 브라우저로 여는 버튼을 먼저 보여 주고, 그 아래에 직접 적는 칸을 둔다.
+//  어디서나          직접 적거나, 카톡으로 받은 "이름 010-…" 글을 이름 칸에 붙여 넣는다(둘로 나뉘어 들어간다).
 // 한 사람에 20명까지다. 남은 자리보다 많이 고르면 앞에서부터 남은 자리만큼만 가져온다.
 // 이 화면은 person_get 을 부르지 않는다(보기 기록을 남기지 않으려고). 이름과 지금 수는 첫 화면 정보에서 찾는다.
+// 다 넣으면 온 곳으로 돌아간다: 우리 가족의 '시작하기'에서 왔으면 우리 가족으로(다음 할 일이 거기에 있다), 내 목록에서 왔으면 내 목록으로.
 import * as api from '../api.js';
 import { h, fill, clear, icon, run, flash, toast, errorText } from '../ui.js';
 import { normalizePhone, formatPhone, extractContact } from '../phone.js';
@@ -12,16 +14,17 @@ import { canPickContacts, pickContacts, isKakaoInApp, isIOS, openExternalHref } 
 import { CONTACT_LIMIT } from '../model.js';
 import { backLink, tagPicker, field } from './forms.js';
 
-export async function addView(page, { home, up }) {
+export async function addView(page, { home, up, cameFrom }) {
   const target = home.me;
   const id = target.id;
   const canPick = canPickContacts();
   const added = [];
   let room = CONTACT_LIMIT - target.count; // 더 넣을 수 있는 수
-  const done = () => up(`/p/${id}`);
+  const parent = cameFrom() === '/' ? '/' : `/p/${id}`;
+  const done = () => up(parent);
 
   const head = [
-    backLink('내 비상연락처', `/p/${id}`, up),
+    backLink(parent === '/' ? '우리 가족' : '내 비상연락처', parent, up),
     h('header', { class: 'top' },
       h('h1', null, '연락처 넣기'),
       h('p', { class: 'sub' }, '연락이 안 될 때 가족이 전화해 볼 분을 넣어요')),
@@ -31,7 +34,7 @@ export async function addView(page, { home, up }) {
     h('p', { class: 'muted' }, '새로 넣으려면 목록에서 먼저 한 분을 빼 주세요.'));
 
   if (room <= 0) {
-    fill(page, head, fullCard(), h('button', { class: 'btn block', type: 'button', onclick: done }, '목록으로'));
+    fill(page, head, fullCard(), h('button', { class: 'btn block', type: 'button', onclick: done }, parent === '/' ? '우리 가족으로' : '목록으로'));
     return;
   }
 
@@ -108,18 +111,20 @@ export async function addView(page, { home, up }) {
       if (count) count.textContent = ` ${rows.length}`;
       if (!rows.length) {
         picked.hidden = true;
-        manual.hidden = false;
+        manual.hidden = !manualOpen;
+        if (typeBtn) typeBtn.hidden = manualOpen;
         setPicked(false);
       }
     };
     sync();
     manual.hidden = true; // 고른 분을 넣는 동안에는 한 가지 일만 보이게 한다
+    if (typeBtn) typeBtn.hidden = true;
     picked.hidden = false;
     setPicked(true);
     clear(picked,
       h('h2', { class: 'section-title' }, '고른 분', h('span', { class: 'count' }, ` ${rows.length}`)),
       cut > 0 ? h('p', { class: 'note' }, icon('info'), h('span', null, `한 사람에 ${CONTACT_LIMIT}명까지라서 앞의 ${rows.length}명만 가져왔어요.`)) : null,
-      h('p', { class: 'muted' }, '어디 분인지 하나씩 눌러 주세요. 모르면 비워 둬도 돼요.'),
+      h('p', { class: 'muted' }, '어디 분인지 눌러 주세요. 비워 둬도 돼요.'),
       h('ul', { class: 'pick-cards' }, rows.map((r) => r.li)),
       bar);
     picked.querySelector('h2').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -186,22 +191,36 @@ export async function addView(page, { home, up }) {
   isIOS() && !canPick
     ? h('p', { class: 'hint-box' }, '아이폰은 이름 칸을 누르고 키보드 위의 ', h('b', null, '연락처 자동 완성'), '을 누른 다음 ', h('b', null, '다른 연락처'), '에서 고르면 이름과 번호가 채워져요.')
     : null,
-  field('이름', name, "카톡으로 받은 '이름 010-…' 글을 여기에 붙여 넣어도 돼요."),
+  field('이름', name),
   field('전화번호', phone),
   tagSlot,
   err,
   addBtn);
 
-  const manual = h('section', { class: 'section' },
-    canPick ? h('h2', { class: 'section-title' }, '한 명씩 적기') : null,
+  // 폰 연락처에서 고를 수 있는 폰에서는 직접 적는 칸을 접어 둔다(할 일이 하나로 보이게)
+  let manualOpen = !canPick;
+  const manual = h('section', { class: 'section', hidden: !manualOpen },
+    canPick ? h('h2', { class: 'section-title' }, '직접 적기') : null,
     h('div', { class: 'card pad' }, form),
     addedList,
     doneBtn);
+  const typeBtn = canPick
+    ? h('button', {
+      class: 'btn text block', type: 'button',
+      onclick: () => {
+        manualOpen = true;
+        manual.hidden = false;
+        typeBtn.hidden = true;
+        name.focus();
+      },
+    }, icon('pencil'), '직접 적기')
+    : null;
 
   const pickSection = canPick
     ? h('section', { class: 'section' },
       pickBtn,
-      h('p', { class: 'fine' }, '고른 분의 이름과 번호만 넘어와요. 폰 연락처 전체를 가져가지 않아요.'))
+      h('p', { class: 'fine' }, '고른 분의 이름과 번호만 넘어와요. 폰 연락처 전체를 가져가지 않아요.'),
+      typeBtn)
     : null;
 
   fill(page,
@@ -210,10 +229,10 @@ export async function addView(page, { home, up }) {
     isKakaoInApp() && !canPick
       ? h('div', { class: 'card pad stack' },
         h('p', null, isIOS()
-          ? '카카오톡 안에서는 연락처 자동 완성이 안 될 수 있어요. 사파리에서 열면 연락처에서 골라 넣을 수 있어요.'
-          : '카카오톡 안에서는 폰 연락처를 고를 수 없어요. 크롬에서 열면 여러 명을 한 번에 골라 넣을 수 있어요.'),
+          ? '폰 연락처에서 골라 넣으려면 사파리에서 열어 주세요.'
+          : '폰 연락처에서 여러 명을 한 번에 골라 넣으려면 크롬에서 열어 주세요.'),
         h('a', { class: 'btn soft block', href: openExternalHref() }, icon('external'), isIOS() ? '사파리에서 열기' : '크롬에서 열기'),
-        h('p', { class: 'fine' }, '카카오로 한 번 더 들어가야 할 수 있어요.'))
+        h('p', { class: 'fine' }, '카카오로 한 번 더 들어가야 할 수 있어요. 아래에 직접 적어도 돼요.'))
       : null,
     picked,
     manual);

@@ -176,7 +176,7 @@ export async function manageView(page, { refresh, go, up }) {
       : null,
     h('div', { class: 'card' }, h('ul', { class: 'list' }, h('li', null, addRow('가족 연결하기', '#/connect')))),
     section('급할 때', 0, [
-      row({ href: '#/prepare', lead: tile('info'), title: '급할 때 바로 찾게', sub: '대화방 공지, 전화 앱에 저장, 한 번 열어 보기' }),
+      row({ href: '#/prepare', lead: tile('info'), title: '급할 때 바로 찾게', sub: '대화방 공지, 전화 앱에 저장' }),
     ]),
     section('화면', 0, [
       h('label', { class: 'row switch-row', for: 'light-mode' },

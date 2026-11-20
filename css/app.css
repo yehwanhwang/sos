@@ -512,7 +512,7 @@ h2,
   box-shadow: inset 0 0 0 1px var(--outline-press);
 }
 
-/* 시작하기: 할 일 세 가지 */
+/* 시작하기·남은 준비: 남은 일만 보여 준다. 다음 할 일 하나에만 버튼이 있고, 나머지는 줄이다 */
 .tick {
   flex: none;
   display: inline-grid;
@@ -524,22 +524,26 @@ h2,
   box-shadow: inset 0 0 0 2px var(--ring);
 }
 
-.step.done .tick {
+/* 내 할 일은 끝났고 가족을 기다리는 중: 고리 안에 점 */
+.step.waiting .tick::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   background: var(--accent);
-  box-shadow: none;
-  color: var(--accent-ink);
-  animation: pop 0.4s var(--spring);
 }
 
-.step.done .tick .icon {
-  width: 18px;
-  height: 18px;
-  stroke-width: 2.6;
+.step-now {
+  padding: 10px 18px 18px;
 }
 
-.step.done .row-title {
-  color: var(--ink-3);
-  font-weight: 500;
+.step-now .row-sub {
+  margin-top: 4px;
+}
+
+.step-now .btn {
+  margin-top: 14px;
+  text-decoration: none;
 }
 
 /* ── 버튼 ─────────────────────────────────────────── */
@@ -654,60 +658,21 @@ h2,
   animation: pop 0.4s var(--spring);
 }
 
-/* 전화: 노란색. 노랑은 전화, 그 화면에서 할 일 버튼, '됐어요' 표시에만 쓴다 */
-.call,
-.btn.call-wide {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-.call {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 52px;
-  padding: 0 18px 0 14px;
-  border-radius: 12px;
-  font-size: 17px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: transform 0.15s var(--ease), background-color 0.15s;
-}
-
-.call:active,
-.btn.call-wide:active {
-  transform: scale(0.96);
-  background: var(--accent-press);
-}
-
-.btn.call-wide {
-  min-height: 60px;
-  font-size: 19px;
-  font-weight: 700;
-}
-
 /* ── 한 사람: 비상연락처 줄 ───────────────────────── */
-
-.contact {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 14px;
-}
+/* 가족의 목록은 줄 전체가 전화 링크다(오른쪽의 노란 '전화'는 그 표시). 내 목록은 줄 전체가 고치기 버튼이다. */
 
 .contact-main {
-  flex: 1;
-  min-width: 0;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
   min-height: 76px;
-  padding: 12px 8px 12px 18px;
+  padding: 12px 14px 12px 18px;
   border: 0;
   background: none;
+  color: var(--ink);
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background-color 0.15s;
 }
@@ -716,20 +681,47 @@ h2,
   background: var(--chip);
 }
 
-.contact-main .row-sub,
-.contact-line {
+.contact-main .row-sub {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-}
-
-.contact-main .row-sub {
   margin-top: 4px;
 }
 
-.contact-line {
-  font-size: 18px;
+/* 전화: 노란색. 노랑은 전화, 그 화면에서 할 일 버튼, '됐어요' 표시에만 쓴다 */
+.call {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 0 18px 0 14px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 17px;
+  font-weight: 700;
+  transition: transform 0.15s var(--ease), background-color 0.15s;
+}
+
+.contact-main:active .call {
+  transform: scale(0.96);
+  background: var(--accent-press);
+}
+
+.edit-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: 15px;
+}
+
+.edit-mark .icon {
+  width: 18px;
+  height: 18px;
 }
 
 .tag {
@@ -746,11 +738,6 @@ h2,
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
-}
-
-.contact-line .num {
-  font-size: 19px;
-  color: var(--ink);
 }
 
 .note {
@@ -949,6 +936,35 @@ h2,
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 고른 분마다 '어디 분이세요?'를 되풀이하지 않는다(목록 위의 한 줄이 말한다). 화면 읽기 프로그램에는 남긴다. */
+.pick-card .tags legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.pick-card .chips {
+  flex-wrap: nowrap;
+  margin: 0 -14px;
+  padding: 4px 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pick-card .chips::-webkit-scrollbar {
+  display: none;
+}
+
+.pick-card .chip {
+  flex: none;
 }
 
 .pick-head .input {

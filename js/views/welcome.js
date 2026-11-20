@@ -71,8 +71,7 @@ export async function welcomeView(page, { token, login }) {
         h('p', { class: 'fine' }, h('a', { class: 'link', href: 'privacy.html' }, '개인정보 처리방침')))));
 }
 
-export async function startView(page, { token, suggested, invite, go }) {
-  const peek = token ? await peekInvite(token) : null;
+export async function startView(page, { token, peek, suggested, invite, go }) {
   const canJoin = usable(peek);
   const name = h('input', {
     class: 'input big', id: 'my-name', name: 'name', value: suggested || '', maxlength: 20,
@@ -116,7 +115,8 @@ export async function startView(page, { token, suggested, invite, go }) {
     h('header', { class: 'top' },
       h('h1', null, '가족에게 보일 이름을 정해 주세요'),
       h('p', { class: 'sub' }, canJoin ? `이 이름으로 ${peek.from}님에게 받아 달라고 물어봐요.` : '연결된 가족 화면에 이 이름으로 보여요.')),
-    !peek ? null : peek.status === 'open' ? inviteCard(peek) : closedCard(peek),
+    // 열린 링크는 위 한 줄로 충분하다(앞 화면에서 이미 봤다). 닫힌 링크만 알려 준다.
+    peek && peek.status !== 'open' ? closedCard(peek) : null,
     h('div', { class: 'card pad' }, form));
 }
 
@@ -148,8 +148,8 @@ export async function joinView(page, { token, peek, invite, go }) {
 
   fill(page,
     h('header', { class: 'top' },
-      h('h1', null, `${peek.from}님이 보낸 링크예요`)),
-    inviteCard(peek),
+      h('h1', null, `${peek.from}님이 보낸 링크예요`),
+      h('p', { class: 'sub' }, `들어가면 ${peek.from}님에게 받아 달라고 물어봐요. 받아 주면 서로의 비상연락처를 봐요.`)),
     h('p', { class: 'note' }, icon('eye'), h('span', null, '서로 볼 수 있는 것은 비상연락처뿐이에요. 내 목록은 나만 고쳐요.')),
     h('div', { class: 'stack' },
       yes,

@@ -8,6 +8,10 @@
 //
 // 링크는 #j=<토큰>. 토큰은 주소에서 바로 지우고, 로그인을 다녀오는 동안 기기에 잠깐 둔다.
 // 링크를 보낸 사람이 화면을 열어 둔 동안에는 15초마다 새로 확인해서, 누가 누르면 곧 '들어오려고 해요'가 뜬다.
+//
+// 서버는 한 번 다녀오는 데 1~2초가 걸린다. 그래서 첫 화면 정보(home)를 화면을 옮길 때마다 다시 묻지 않는다:
+// 우리 가족 화면을 새로 열 때와 무언가를 바꾼 뒤에만 읽고, 다른 화면에서 돌아올 때는 들고 있던 것을 먼저 보여 준 다음
+// 뒤에서 새로 읽어 달라졌으면 다시 그린다. 링크로 열었을 때는 첫 화면 정보와 링크 정보를 함께 묻는다.
 import * as api from './api.js';
 import { h, clear, toast, errorText, closeAllSheets, takeSheetEntry } from './ui.js';
 import { welcomeView, startView, joinView, peekInvite } from './views/welcome.js';
@@ -108,6 +112,9 @@ function up(parent) {
   else go(parent, { replace: true });
 }
 
+/** 바로 앞 히스토리 항목의 화면(없으면 null). 어디서 왔는지에 따라 돌아갈 곳이 다른 화면이 쓴다(넣기). */
+const cameFrom = () => (idx > 0 ? stack[idx - 1] ?? null : null);
+
 /** 카카오 로그인을 다녀온 뒤 돌아갈 화면을 기억해 두고 로그인으로 보낸다. */
 async function login() {
   const path = currentPath();
@@ -121,7 +128,34 @@ let shown = null; // 지금 그려진 화면의 경로(또는 'welcome' 같은 �
 const depth = (p) => (p?.startsWith('/') ? p.split('/').filter(Boolean).length : 0);
 const motionOk = () => typeof document.startViewTransition === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const ctx = { go, up, login, invite, refresh: () => route({ keepScroll: true }) };
+const ctx = { go, up, cameFrom, login, invite, refresh: () => route({ keepScroll: true }) };
+
+// ── 첫 화면 정보(home) ─────────────────────────────────────────────────────────────
+
+let lastHome = null;
+let homeWrites = -1; // lastHome 을 읽기 시작했을 때의 api.writeCount(). 그 뒤로 무언가 바꿨으면 낡은 것이다
+const homeFresh = () => !!lastHome && homeWrites === api.writeCount();
+/** 이 화면들은 첫 화면 정보의 수(연락처 수, 열어 둔 링크)를 쓴다. 낡았으면 새로 읽는다. 나머지는 들고 있는 것으로 충분하다. */
+const USES_HOME = new Set(['/', '/add', '/connect', '/check']);
+
+async function loadHome() {
+  const at = api.writeCount();
+  const home = await api.rpc('home');
+  lastHome = home;
+  homeWrites = at;
+  return home;
+}
+
+/** 들고 있던 것으로 우리 가족을 먼저 보여 줬다. 뒤에서 새로 읽어 달라졌으면 다시 그린다. */
+function revalidate() {
+  const before = lastHome;
+  loadHome().then((now) => {
+    if (JSON.stringify(now) === JSON.stringify(before)) return;
+    if (shown === '/' && !document.querySelector('.backdrop')) route({ keepScroll: true, cached: true });
+  }).catch(() => {
+    /* 다음에 화면을 열 때 다시 읽는다 */
+  });
+}
 
 // 화면 고르기는 한 번에 하나씩(불러오는 중에 주소가 또 바뀌어도 겹치지 않게).
 let routing = Promise.resolve();
@@ -166,11 +200,11 @@ function message(title, body, actionLabel = '처음으로', action = () => go('/
   }, {}, 'message');
 }
 
-async function routeOnce({ keepScroll = false } = {}) {
+async function routeOnce({ keepScroll = false, cached = false } = {}) {
   const y = keepScroll ? scrollY : 0;
   document.body.classList.add('busy');
   try {
-    await routeInner(y);
+    await routeInner(y, cached);
   } catch (e) {
     if (e?.code === 'not_authenticated') {
       route(); // onSignedOut 이 세션을 지웠다. 첫 화면으로
@@ -185,16 +219,24 @@ async function routeOnce({ keepScroll = false } = {}) {
   }
 }
 
-async function routeInner(y) {
+/** @param cached 들고 있는 첫 화면 정보로 그린다(방금 뒤에서 새로 읽었다) */
+async function routeInner(y, cached) {
   const token = invite.get();
-  if (!api.getSession()) return show(welcomeView, { token }, 'welcome');
+  if (!api.getSession()) {
+    lastHome = null;
+    return show(welcomeView, { token }, 'welcome');
+  }
 
-  const home = await api.rpc('home');
-  lastHome = home;
-  if (!home.exists) return show(startView, { token, suggested: home.suggested_name }, 'start');
+  const want = currentPath();
+  const inApp = typeof shown === 'string' && shown.startsWith('/'); // 앱 안의 화면에서 옮겨 왔다
+  const back = want === '/' && inApp && shown !== '/' && homeFresh(); // 다른 화면에서 우리 가족으로: 먼저 보여 주고 뒤에서 읽는다
+  // 우리 가족 화면은 새로 열 때마다 읽는다(위의 두 경우만 빼고). 다른 화면은 들고 있는 것이 낡지 않았거나 그 화면이 수를 쓰지 않으면 그대로 쓴다.
+  const reuse = !token && !!lastHome?.exists && (cached || back || (want !== '/' && inApp && (homeFresh() || !USES_HOME.has(want))));
+  // 링크로 열었으면 첫 화면 정보와 링크 정보를 함께 묻는다(차례로 물으면 두 번 기다린다)
+  const [home, peek] = await Promise.all([reuse ? lastHome : loadHome(), token ? peekInvite(token) : null]);
+  if (!home.exists) return show(startView, { token, peek, suggested: home.suggested_name }, 'start');
 
   if (token) {
-    const peek = await peekInvite(token);
     if (peek.status === 'error') throw peek.error;
     // 이미 연결된 사람이 카톡 대화방의 그 링크를 다시 눌렀다(가장 흔한 경우), 또는 이미 물어보고 기다리는 중이다:
     // 묻지 않고 가족 화면을 연다(기다리는 중이면 거기에 '받아 주면 열려요'가 보인다).
@@ -215,7 +257,11 @@ async function routeInner(y) {
   const path = currentPath();
   syncHistory(path);
   let m;
-  if (path === '/') return show(homeView, { home }, path, y);
+  if (path === '/') {
+    await show(homeView, { home }, path, y);
+    if (back && !cached) revalidate();
+    return;
+  }
   if ((m = /^\/p\/([0-9a-f-]{36})$/.exec(path))) return show(personView, { id: m[1], home }, path, y);
   if (path === '/add') return show(addView, { home }, path, y);
   if (path === '/connect') return show(connectView, { home }, path, y);
@@ -229,7 +275,6 @@ async function routeInner(y) {
 // 푸시 알림이 없으므로, 열어 둔 링크가 있거나 내가 누르고 기다리는 링크가 있는 동안에는 15초마다 첫 화면 정보를 다시 읽는다.
 // 우리 가족 화면이면 바로 다시 그리고, 다른 화면이면 알림으로 알려 준다.
 
-let lastHome = null;
 // 서버(구글 Apps Script)는 한 번에 1~2초가 걸리고 실행 횟수에 한도가 있어서 15초마다 묻는다.
 const POLL_MS = Number(globalThis.FAMSOS_POLL_MS) || 15000;
 const sig = (x) => JSON.stringify([x.requests.map((r) => r.id), x.waiting.map((w) => `${w.id}:${w.status}`), x.people.map((p) => p.id)]);
@@ -238,6 +283,7 @@ async function watch() {
   const before = lastHome;
   if (document.hidden || !api.getSession() || !before?.exists) return;
   if (!(before.open_links > 0 || before.waiting.some((w) => w.status === 'pending'))) return;
+  const at = api.writeCount();
   let now;
   try {
     now = await api.rpc('home');
@@ -245,12 +291,13 @@ async function watch() {
     return; // 다음에 다시
   }
   if (!now.exists || sig(now) === sig(before) || lastHome !== before) return;
-  if (shown === '/' && !document.querySelector('.backdrop')) {
-    route({ keepScroll: true }); // 다시 그리면서 lastHome 도 새로 읽는다
+  if (shown === '/' && document.querySelector('.backdrop')) return; // 창이 열려 있으면 닫힌 뒤에 다시 본다
+  lastHome = now;
+  homeWrites = at;
+  if (shown === '/') {
+    route({ keepScroll: true, cached: true });
     return;
   }
-  if (shown === '/') return; // 창이 열려 있으면 닫힌 뒤에 다시 본다
-  lastHome = now;
   const asked = now.requests.find((r) => !before.requests.some((x) => x.id === r.id));
   const joined = now.people.find((p) => !before.people.some((x) => x.id === p.id));
   if (asked) toast(`${asked.name}님이 들어오려고 해요. 우리 가족 화면에서 받아 주세요.`);
@@ -268,7 +315,10 @@ async function boot() {
   if (!api.configured()) {
     return message('설정이 필요해요', 'config.js 에 Apps Script 웹 앱 주소(API_URL)와 카카오 REST API 키를 넣어 주세요. 방법은 README에 있어요.', '다시 열기', () => location.reload());
   }
-  api.onSignedOut(() => route());
+  api.onSignedOut(() => {
+    lastHome = null;
+    route();
+  });
   addEventListener('hashchange', () => {
     if (/^#j=/.test(location.hash)) captureInvite(); // 앱이 열린 탭에서 초대 링크를 연 경우
     closeAllSheets();

@@ -174,6 +174,10 @@ export async function signOut() {
 
 // ── 서버 함수 ────────────────────────────────────────────────────────────────────
 
+let writes = 0;
+/** 지금까지 바꾸는 함수를 부른 횟수. 화면이 들고 있는 첫 화면 정보가 낡았는지 아는 데 쓴다(main.js). */
+export const writeCount = () => writes;
+
 /**
  * 서버 함수를 부른다.
  * @param opts.anon 로그인 없이(초대 링크 미리 보기)
@@ -184,6 +188,7 @@ export async function rpc(fn, payload = {}, opts = {}) {
     if (!session) throw new ApiError('not_authenticated');
     body.token = session.token;
   }
+  if (!READS.has(fn)) writes += 1; // 실패해도 바뀌었을 수 있다고 본다(답만 못 받았을 수 있다)
   try {
     try {
       return await post(body);
