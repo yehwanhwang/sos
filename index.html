@@ -10,7 +10,11 @@
     <!-- GitHub Pages 는 응답 헤더를 정할 수 없어서 보안 정책을 여기에 둔다. 서버는 구글 Apps Script 하나뿐이다. -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'" />
     <meta name="format-detection" content="telephone=no" />
-    <meta name="theme-color" content="#1b1b1b" />
+    <!-- 밝기와 글자 크기는 폰 설정을 따른다(app.css). text-scale: 크롬이 폰의 글자 크기만큼 rem 을 키운다. -->
+    <meta name="color-scheme" content="dark light" />
+    <meta name="text-scale" content="scale" />
+    <meta name="theme-color" content="#1b1b1b" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta property="og:title" content="비상연락망" />
     <meta property="og:description" content="연락이 안 될 때 가족이 전화해 볼 사람을 적어 두는 곳" />
     <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
@@ -18,7 +22,6 @@
     <link rel="preload" href="fonts/vz-sans-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="css/app.css" />
     <script src="config.js"></script>
-    <script src="js/theme.js"></script>
     <script type="module" src="js/main.js"></script>
   </head>
   <body>

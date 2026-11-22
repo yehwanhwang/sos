@@ -1,4 +1,4 @@
-// 화면을 만드는 작은 도구들: 요소 만들기, 아이콘, 얼굴(이름 첫 글자), 시트, 알림, 공유, 조사, 시간 표기, 오류 문구.
+// 화면을 만드는 작은 도구들: 요소 만들기, 아이콘, 얼굴(이름 두 글자), 시트, 알림, 공유, 조사, 시간 표기, 오류 문구.
 // 프레임워크 없이 DOM을 직접 만든다. CSP 때문에 style 속성은 쓰지 않는다.
 
 /** h('button', { class: 'btn', onclick: fn }, '저장') */
@@ -73,23 +73,52 @@ export function icon(name, cls = '') {
   return svg;
 }
 
-/** 이름 첫 글자를 넣은 동그라미. 사람 줄을 한눈에 구분하게 한다. */
-export function avatar(name, cls = '') {
-  const first = [...String(name || '').trim()][0] || '?';
-  return h('span', { class: `avatar ${cls}`.trim(), 'aria-hidden': 'true' }, first);
+/**
+ * 동그라미에 넣을 글자. 가족은 성이 같으므로 성이 아니라 이름을 쓴다: '황예환' → '예환', '황철수' → '철수'.
+ * 한글 두 글자 이름('이솔')은 그대로, 한글이 아니면 앞의 두 글자('Mom' → 'Mo').
+ */
+export function initials(name) {
+  const word = [...(String(name || '').trim().split(/\s+/)[0] || '')];
+  if (!word.length) return '?';
+  const hangul = word.every((ch) => /[가-힣]/.test(ch));
+  return (hangul && word.length > 2 ? word.slice(-2) : word.slice(0, 2)).join('');
 }
 
-// ── 알림(화면 위쪽에 잠깐) ────────────────────────────────────────────────────────
-// 아래쪽에 두면 누를 버튼을 가린다. 한 번에 하나만 보여 주고, 화면이 바뀌면 지운다.
+/** 이름 두 글자를 넣은 동그라미. 사람 줄을 한눈에 구분하게 한다. */
+export function avatar(name, cls = '') {
+  return h('span', { class: `avatar ${cls}`.trim(), 'aria-hidden': 'true' }, initials(name));
+}
 
-let toastHost = null;
+/** 줄이 바뀌어도 되는 자리를 정한다. 덩어리 안에서는 끊기지 않는다: phrases('링크를 보냈어요.', '가족이 누르면 여기에 떠요') */
+export const phrases = (...parts) => parts.flatMap((part, i) => [i ? ' ' : null, h('span', { class: 'keep' }, part)]);
+
+// ── 알림(화면 아래쪽에 잠깐) ──────────────────────────────────────────────────────
+// 위쪽에 두면 '‹ 뒤로'와 화면 제목을 가린다. 그래서 아래쪽에 두되, 아래에 붙은 버튼 줄(고른 분 넣기)이 있으면 그 위로,
+// 창이 열려 있으면 창을 가리지 않게 화면 위쪽(가려진 화면 쪽)에 띄운다. 알림은 누르는 것을 막지 않는다.
+// 알림 자리는 처음부터 만들어 둔다(화면 읽기 프로그램은 미리 있던 자리에 들어온 글만 읽어 준다).
+
+const toastHost = typeof document?.createElement === 'function' && document.body
+  ? h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' })
+  : null; // 화면이 없는 곳(미리 보기 규칙 테스트)에서는 만들지 않는다
+if (toastHost) document.body.append(toastHost);
 let toastTimer = 0;
-export function toast(message, ms = 3200) {
-  if (!toastHost) {
-    toastHost = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' });
-    document.body.append(toastHost);
+
+/** 알림 자리를 정한다: 창이 열려 있으면 위, 아니면 아래(아래에 붙은 버튼 줄이 보이면 그 위) */
+function placeToasts() {
+  if (!toastHost) return;
+  toastHost.classList.toggle('over-sheet', openSheets.length > 0);
+  let lift = 0;
+  for (const bar of document.querySelectorAll('.savebar')) {
+    const r = bar.getBoundingClientRect();
+    if (r.height && r.top < innerHeight && r.bottom > innerHeight - 4) lift = Math.max(lift, innerHeight - r.top);
   }
+  toastHost.style.setProperty('--toast-lift', `${Math.round(lift)}px`);
+}
+
+export function toast(message, ms = 3200) {
+  if (!toastHost) return;
   clearTimeout(toastTimer);
+  placeToasts();
   const el = h('div', { class: 'toast' }, message);
   toastHost.replaceChildren(el);
   toastTimer = setTimeout(() => el.remove(), ms);
@@ -130,6 +159,7 @@ export function sheet(title, build, { dismissable = true } = {}) {
   const close = (value, { popped = false } = {}) => {
     if (!openSheets.includes(entry)) return;
     openSheets.splice(openSheets.indexOf(entry), 1);
+    placeToasts();
     document.removeEventListener('keydown', onKey);
     // 닫히는 동안에는 화면 읽기 프로그램과 테스트에 보이지 않게 한다.
     panel.removeAttribute('role');
@@ -178,6 +208,7 @@ export function sheet(title, build, { dismissable = true } = {}) {
   const backdrop = h('div', { class: 'backdrop', onclick: (e) => e.target === backdrop && dismissable && close() }, panel);
   const entry = { close };
   openSheets.push(entry);
+  placeToasts();
   if (unpopped > 0 && history.state?.famsosSheet) unpopped -= 1; // 방금 닫은 시트의 히스토리 항목을 이어 쓴다
   else history.pushState({ ...(history.state || {}), famsosSheet: openSheets.length }, '');
   document.body.append(backdrop);

@@ -12,7 +12,7 @@ import { h, fill, clear, icon, run, flash, toast, errorText } from '../ui.js';
 import { normalizePhone, formatPhone, extractContact } from '../phone.js';
 import { canPickContacts, pickContacts, isKakaoInApp, isIOS, openExternalHref } from '../device.js';
 import { CONTACT_LIMIT } from '../model.js';
-import { backLink, tagPicker, field } from './forms.js';
+import { backLink, tagPicker, field, fieldError, clearFieldErrors, phoneError } from './forms.js';
 
 export async function addView(page, { home, up, cameFrom }) {
   const target = home.me;
@@ -143,7 +143,7 @@ export async function addView(page, { home, up, cameFrom }) {
   });
   let tags = tagPicker('');
   const tagSlot = h('div', null, tags.el);
-  const err = h('p', { class: 'error', role: 'alert', hidden: true });
+  const err = h('p', { class: 'error', role: 'alert', hidden: true }); // 칸과 상관없는 오류(인터넷 등)는 '넣기' 바로 위에
   const addBtn = h('button', { class: canPick ? 'btn soft block' : 'btn block', type: 'submit' }, '넣기');
   const addedList = h('p', { class: 'added', hidden: true });
   const doneBtn = h('button', { class: 'btn soft block', type: 'button', onclick: done }, '다 됐어요');
@@ -153,20 +153,23 @@ export async function addView(page, { home, up, cameFrom }) {
     onsubmit: (e) => {
       e.preventDefault();
       err.hidden = true;
+      clearFieldErrors(form);
+      // 칸의 오류는 그 칸 바로 아래에, 나머지는 '넣기' 위에
       const fail = (msg, el) => {
+        if (el && fieldError(el, msg)) return;
         err.textContent = msg;
         err.hidden = false;
-        el.focus();
+        name.focus();
       };
       if (!name.value.trim()) return fail('이름을 넣어 주세요.', name);
       const number = normalizePhone(phone.value);
-      if (!number) return fail('전화번호를 확인해 주세요. 예: 010-1234-5678', phone);
+      if (!number) return fail(phoneError(), phone);
       run(addBtn, async () => {
         let res;
         try {
           res = await api.rpc('contacts_add', { items: [{ name: name.value, phone: number, tag: tags.value() }] });
         } catch (ex) {
-          return fail(errorText(ex), name);
+          return fail(errorText(ex));
         }
         if (res.skipped) return fail('이미 넣은 번호예요.', phone);
         added.push(name.value.trim());

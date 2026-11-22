@@ -3,10 +3,10 @@
 //  내 목록      줄을 누르면 바로 고치는 창이 열린다. 노란 전화 버튼은 없다(내 폰에 있는 번호들이다). 누가 봤는지도 본다.
 // 목록 위에는 주인이 언제 확인했는지가 보이고, 오래됐거나 비어 있으면 카톡으로 부탁할 수 있다.
 import * as api from '../api.js';
-import { h, fill, icon, avatar, sheet, confirm, run, toast, errorText, fmtDateTime, share } from '../ui.js';
+import { h, fill, icon, avatar, phrases, sheet, confirm, run, toast, errorText, fmtDateTime, share } from '../ui.js';
 import { formatPhone, normalizePhone, telHref } from '../phone.js';
 import { CONTACT_LIMIT, checkedText, askCheckText, askAddText, siteUrl } from '../model.js';
-import { backLink, addRow, tagPicker, field } from './forms.js';
+import { backLink, addRow, tagPicker, field, fieldError, clearFieldErrors, phoneError } from './forms.js';
 
 export async function personView(page, { id, up, refresh }) {
   const p = await api.rpc('person_get', { id });
@@ -37,8 +37,8 @@ export async function personView(page, { id, up, refresh }) {
           h('h1', { class: 'morph-dst' }, p.name),
           p.is_me ? h('span', { class: 'me-tag' }, '나') : null),
         h('p', { class: 'sub' }, p.is_me
-          ? '연락이 안 될 때 가족이 전화해 볼 분들이에요'
-          : n ? '연락이 안 되면 이 분들께 전화해 보세요' : '아직 비상연락처가 없어요'))),
+          ? phrases('연락이 안 될 때', '가족이 전화해 볼 분들이에요')
+          : n ? phrases('연락이 안 되면', '이 분들께 전화해 보세요') : '아직 비상연락처가 없어요'))),
     h('section', { class: 'section' },
       h('div', { class: 'section-head' },
         h('h2', { class: 'section-title' }, p.is_me ? '내 비상연락처' : '비상연락처', n ? h('span', { class: 'count' }, ` ${n}`) : null),
@@ -61,11 +61,12 @@ function contactRow(c, mine, refresh) {
     h('span', { class: 'row-title' }, c.name),
     h('span', { class: 'row-sub' }, contactLine(c)));
   return h('li', { class: 'contact' }, mine
-    ? h('button', { class: 'contact-main', type: 'button', 'aria-label': `${c.name} 고치기`, onclick: () => editSheet(c, refresh) },
+    // 읽는 이름에 소속과 번호까지 넣는다(화면 읽기 프로그램으로도 번호를 듣게)
+    ? h('button', { class: 'contact-main', type: 'button', 'aria-label': `${c.name} 고치기, ${c.tag ? `${c.tag}, ` : ''}${formatPhone(c.phone)}`, onclick: () => editSheet(c, refresh) },
       text, h('span', { class: 'edit-mark' }, icon('pencil'), '고치기'))
     // 줄 전체가 전화 링크다. 누르면 전화 앱이 이 번호로 열린다(바로 걸리지는 않는다).
     : h('a', { class: 'contact-main', href: telHref(c.phone), 'aria-label': `${c.name}님께 전화, ${c.tag ? `${c.tag}, ` : ''}${formatPhone(c.phone)}` },
-      text, h('span', { class: 'call' }, icon('phone'), '전화')));
+      text, h('span', { class: 'call' }, icon('phone'), h('span', { class: 'label' }, '전화'))));
 }
 
 /** 오래됐거나 비어 있는 목록: 주인에게 카톡으로 부탁한다. where: 링크를 누르면 열릴 화면 */
@@ -107,11 +108,10 @@ function editSheet(c, refresh) {
         onsubmit: (e) => {
           e.preventDefault();
           err.hidden = true;
+          clearFieldErrors(e.currentTarget);
           const number = normalizePhone(phone.value);
           if (!number) {
-            err.textContent = '전화번호를 확인해 주세요.';
-            err.hidden = false;
-            phone.focus();
+            fieldError(phone, phoneError()); // 그 칸 바로 아래에
             return;
           }
           run(save, async () => {

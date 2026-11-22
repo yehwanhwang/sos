@@ -7,10 +7,13 @@
     <meta name="robots" content="noindex" />
     <meta name="referrer" content="no-referrer" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'" />
-    <meta name="theme-color" content="#1b1b1b" />
+    <!-- 밝기와 글자 크기는 폰 설정을 따른다(app.css). text-scale: 크롬이 폰의 글자 크기만큼 rem 을 키운다. -->
+    <meta name="color-scheme" content="dark light" />
+    <meta name="text-scale" content="scale" />
+    <meta name="theme-color" content="#1b1b1b" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="css/app.css" />
-    <script src="js/theme.js"></script>
   </head>
   <body>
     <main class="app doc">
@@ -53,7 +56,7 @@
       </ul>
 
       <h2>이 기기에 두는 것</h2>
-      <p>쿠키는 쓰지 않아요. 로그인 정보와 화면 설정(밝게 보기)은 이 기기의 브라우저 저장소에만 둬요. 로그아웃하면 로그인 정보가 지워져요.</p>
+      <p>쿠키는 쓰지 않아요. 로그인 정보는 이 기기의 브라우저 저장소에만 둬요. 로그아웃하면 지워져요. 화면의 밝기와 글자 크기는 폰 설정을 따르고, 따로 저장하지 않아요.</p>
 
       <h2>카카오 연결 끊기</h2>
       <p>카카오 계정 설정의 연결된 서비스 관리에서 이 서비스와의 연결을 끊을 수 있어요. 연결을 끊어도 시트에 둔 정보는 남으니, 먼저 설정에서 내 정보 모두 지우기를 눌러 주세요.</p>

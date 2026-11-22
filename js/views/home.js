@@ -1,12 +1,12 @@
 // 우리 가족: 가족이 카톡의 링크를 누르면 이 화면이 열린다. 급할 때 여는 화면이라 가족 목록이 가장 위에 온다.
 //
-//   연결된 가족이 있을 때   받아 줄 사람 → 명절 점검 → 가족 → 기다리는 링크 → 나 → 남은 준비
-//   아직 없을 때(처음)      받아 줄 사람 → 기다리는 링크 → 시작하기(다음 할 일 하나에만 버튼) → 나
+//   연결된 가족이 있을 때   받아 줄 사람 → 명절 점검 → 가족 → 기다리는 링크 → 내 비상연락처 → 남은 준비
+//   아직 없을 때(처음)      받아 줄 사람 → 기다리는 링크 → 시작하기(다음 할 일 하나에만 버튼) → 내 비상연락처
 //
 // 준비는 세 가지다(내 비상연락처 → 가족 연결 → 급할 때 찾는 길). 끝낸 것은 다시 보여 주지 않고,
 // 같은 일을 두 군데에 두지 않는다(비어 있는 '나'와 '가족'은 준비 카드가 대신한다).
 import * as api from '../api.js';
-import { h, fill, icon, avatar, sheet, run, toast, share, fmtDateTime } from '../ui.js';
+import { h, fill, icon, avatar, phrases, sheet, run, toast, share, fmtDateTime } from '../ui.js';
 import { checkedText, names, knockedText, siteUrl } from '../model.js';
 import { row, addRow } from './forms.js';
 
@@ -26,7 +26,7 @@ export async function homeView(page, { home, from, refresh }) {
     ? h('section', { class: 'card asks', 'aria-label': '들어오려는 사람' },
       h('ul', { class: 'list' }, requests.map((r) => h('li', null, row({
         onclick: () => answerSheet(r, refresh), lead: avatar(r.name, 'ask'),
-        title: `${r.name}님이 들어오려고 해요`, sub: `${fmtDateTime(r.at)} · 내 링크를 눌렀어요`, cls: 'ask-row',
+        title: phrases(`${r.name}님이`, '들어오려고 해요'), sub: `${fmtDateTime(r.at)} · 내 링크를 눌렀어요`, cls: 'ask-row',
       })))))
     : null;
 
@@ -49,8 +49,8 @@ export async function homeView(page, { home, from, refresh }) {
     ? h('a', { class: 'card season', href: '#/check' },
       h('span', { class: 'tile accent' }, icon('check')),
       h('span', { class: 'row-text' },
-        h('span', { class: 'row-title' }, `${season.name}이에요. 비상연락망 점검할 때예요`),
-        h('span', { class: 'row-sub' }, '내 비상연락처가 그대로인지 30초만 봐 주세요')),
+        h('span', { class: 'row-title' }, phrases(`${season.name}이에요.`, '비상연락망 점검할 때예요')),
+        h('span', { class: 'row-sub' }, phrases('내 비상연락처가 그대로인지', '30초만 봐 주세요'))),
       icon('chevron', 'chev'))
     : null;
 
@@ -68,7 +68,7 @@ export async function homeView(page, { home, from, refresh }) {
       // 누가 기다리는지는 위의 카드가 이름으로 말한다. 여기서는 지금 어디까지 왔는지만.
       wait: requests.length ? '위에서 받아 주면 연결돼요'
         : pending.length ? '받아 주길 기다리고 있어요'
-          : openLinks ? '링크를 보냈어요. 가족이 누르면 여기에 떠요' : '',
+          : openLinks ? phrases('링크를 보냈어요.', '가족이 누르면 여기에 떠요') : '',
     },
     {
       done: me.prepared, href: '#/prepare', label: '급할 때 바로 찾게 해 두기', hint: '대화방 공지, 전화 앱에 저장',
@@ -78,18 +78,20 @@ export async function homeView(page, { home, from, refresh }) {
   const todo = steps.filter((s) => !s.done);
   // 다음 할 일 하나에만 노란 버튼을 준다. 가족이 있으면 가족 목록이, 받아 줄 사람이 있으면 그 카드가 먼저라서 준비는 줄로만 둔다.
   const now = connected || requests.length ? null : todo.find((s) => !s.wait);
+  // 가족이 없는 동안에는 차례가 있는 일이라 번호를 붙인다. 가족이 생긴 뒤의 '남은 준비'는 차례가 없으니 번호 없이, 한 단계 낮춰 그린다.
+  const no = (s) => (connected ? null : h('span', { class: 'tick' }, String(steps.indexOf(s) + 1)));
   const setup = todo.length
-    ? h('section', { class: 'card checklist', 'aria-label': connected ? '남은 준비' : '시작하기' },
+    ? h('section', { class: `card checklist ${connected ? 'quiet' : ''}`.trim(), 'aria-label': connected ? '남은 준비' : '시작하기' },
       h('div', { class: 'card-head' },
         h('h2', null, connected ? '남은 준비' : '시작하기'),
         connected ? null : h('span', { class: 'count' }, h('b', null, String(steps.length - todo.length)), ` / ${steps.length}`)),
       h('ol', { class: 'list' }, todo.map((s) => h('li', null, s === now
         ? h('div', { class: 'step-now' },
-          h('p', { class: 'row-title' }, s.ask),
+          h('p', { class: 'row-title step-ask' }, no(s), h('span', null, s.ask)),
           h('p', { class: 'row-sub' }, s.why),
           h('a', { class: 'btn block', href: s.href }, s.action))
         : h('a', { class: `row step ${s.wait ? 'waiting' : ''}`.trim(), href: s.href },
-          h('span', { class: 'tick' }),
+          no(s),
           h('span', { class: 'row-text' },
             h('span', { class: 'row-title' }, s.label),
             h('span', { class: 'row-sub' }, s.wait || s.hint)),
@@ -103,21 +105,20 @@ export async function homeView(page, { home, from, refresh }) {
       h('div', { class: 'card' },
         h('ul', { class: 'list', 'aria-label': '연결된 가족' },
           people.map((p) => h('li', null, mark(row({
-            href: `#/p/${p.id}`, lead: avatar(p.name), title: p.name, morph: true,
+            href: `#/p/${p.id}`, lead: avatar(p.name), title: p.name, morph: true, cls: 'person',
             sub: p.count ? h('span', { class: p.checked.stale ? 'stale' : null }, checkedText(p.checked)) : '아직 비어 있어요',
             trail: p.count ? `${p.count}명` : null,
           }), p.id))),
           h('li', null, addRow('가족 연결하기', '#/connect', openLinks ? `보낸 링크 ${openLinks}개가 열려 있어요` : '')))))
     : null;
 
-  // ── 나(비어 있으면 준비 카드의 '내 비상연락처 넣기'가 대신한다) ──
+  // ── 내 비상연락처(비어 있으면 준비 카드의 '내 비상연락처 넣기'가 대신한다). 가족 줄과 같은 짜임이고, 한 단계 낮춰 그린다 ──
   const mine = me.count
     ? h('section', { class: 'section' },
-      h('h2', { class: 'section-title' }, '나'),
-      h('div', { class: 'card' }, h('ul', { class: 'list' }, h('li', null, mark(row({
+      h('h2', { class: 'section-title' }, '내 비상연락처'),
+      h('div', { class: 'card quiet' }, h('ul', { class: 'list' }, h('li', null, mark(row({
         href: `#/p/${me.id}`, lead: avatar(me.name, 'me'), title: me.name, morph: true,
-        // 좁은 폰에서는 '내 비상연락처 3명 ·' / '10월 18일에 확인' 두 덩어리로만 나뉜다
-        sub: h('span', null, h('span', { class: 'keep' }, `내 비상연락처 ${me.count}명 ·`), ' ', h('span', { class: 'keep' }, checkedText(me.checked))),
+        sub: checkedText(me.checked), trail: `${me.count}명`,
       }), me.id)))))
     : null;
 

@@ -54,6 +54,9 @@ const keep = {
   },
 };
 
+// 3.2까지 설정의 '밝게 보기'가 이 기기에 남기던 값. 이제 밝기는 폰 설정을 따르므로 남아 있으면 지운다.
+keep.del('famsos.theme');
+
 const invite = {
   get: () => keep.get(JOIN_KEY),
   clear: () => keep.del(JOIN_KEY),
@@ -173,11 +176,16 @@ async function show(view, props = {}, name = currentPath(), scrollY = 0) {
   await view(page, { ...props, ...ctx, from: shown });
   const dir = name === shown ? 'same' : depth(name) > depth(shown) ? 'forward' : depth(name) < depth(shown) ? 'back' : 'fade';
   const swap = () => {
-    if (name !== shown) closeAllSheets(); // 같은 화면을 다시 그릴 때는 열려 있는 창을 그대로 둔다
+    const changed = name !== shown;
+    const first = shown === null;
+    if (changed) closeAllSheets(); // 같은 화면을 다시 그릴 때는 열려 있는 창을 그대로 둔다
     clear(root, page);
     scrollTo(0, scrollY);
     shown = name;
-    page.querySelector('[data-autofocus]')?.focus({ preventScroll: true });
+    document.title = pageTitle(page);
+    const auto = page.querySelector('[data-autofocus]');
+    if (auto) auto.focus({ preventScroll: true });
+    else if (changed && !first) focusHeading(page);
   };
   if (!motionOk() || document.hidden) return swap();
   document.documentElement.dataset.nav = dir;
@@ -188,6 +196,25 @@ async function show(view, props = {}, name = currentPath(), scrollY = 0) {
     for (const el of root.querySelectorAll('.morph-src')) el.classList.remove('morph-src');
   });
   await t.updateCallbackDone.catch(() => {});
+}
+
+/** 탭 제목: '김영숙 - 비상연락망'. 화면 읽기 프로그램이 새 화면을 알리는 데도 쓴다. */
+function pageTitle(page) {
+  const h1 = page.querySelector('h1');
+  const text = h1?.textContent.replace(/\s+/g, ' ').trim();
+  return !text || text === '비상연락망' ? '비상연락망' : `${text} - 비상연락망`;
+}
+
+/**
+ * 다른 화면으로 바뀌면 초점을 그 화면의 제목(h1)으로 옮긴다. 그래야 화면 읽기 프로그램(톡백, 보이스오버)이
+ * 새 화면을 처음부터 읽고, 키보드로는 다음 Tab 이 새 화면의 첫 칸으로 간다. 같은 화면을 다시 그릴 때와
+ * 처음 열 때는 옮기지 않는다(보던 자리를 빼앗지 않게).
+ */
+function focusHeading(page) {
+  const h1 = page.querySelector('h1');
+  if (!h1) return;
+  h1.tabIndex = -1;
+  h1.focus({ preventScroll: true });
 }
 
 function message(title, body, actionLabel = '처음으로', action = () => go('/', { replace: true })) {

@@ -43,12 +43,44 @@ export const addRow = (label, href, sub = '') => h('a', { class: 'row add', href
 /**
  * 이름표가 붙은 입력 칸. 도움말은 이름표와 따로 두고 aria-describedby 로 잇는다
  * (이름표 안에 넣으면 화면 읽기 프로그램이 도움말까지 칸 이름으로 읽는다).
+ * 칸 바로 아래에 그 칸의 오류 자리가 있다(fieldError).
  */
 export function field(label, input, hint = '') {
   if (!input.id) input.id = `f-${++seq}`;
   const help = hint ? h('p', { class: 'hint', id: `${input.id}-hint` }, hint) : null;
+  const err = h('p', { class: 'error', id: `${input.id}-err`, role: 'alert', hidden: true });
   if (help) input.setAttribute('aria-describedby', help.id);
-  return h('div', { class: 'field' }, h('label', { for: input.id }, label), input, help);
+  return h('div', { class: 'field' }, h('label', { for: input.id }, label), input, err, help);
+}
+
+/** 전화번호 오류 문구. 예로 든 번호는 가운데서 줄을 바꾸지 않는다. */
+export const phoneError = () => ['전화번호를 확인해 주세요. ', h('span', { class: 'nowrap' }, '예: 010-1234-5678')];
+
+/** 그 칸 바로 아래에 오류를 보여 주고 칸으로 초점을 옮긴다. 칸에 aria-invalid 를 달고 오류 문구와 잇는다. */
+export function fieldError(input, message) {
+  const err = input.closest('.field')?.querySelector(':scope > .error');
+  if (!err) return false;
+  err.replaceChildren(...[message].flat());
+  err.hidden = false;
+  input.setAttribute('aria-invalid', 'true');
+  const ids = (input.getAttribute('aria-describedby') || '').split(' ').filter((x) => x && x !== err.id);
+  input.setAttribute('aria-describedby', [err.id, ...ids].join(' '));
+  input.focus();
+  return true;
+}
+
+/** form 안의 칸 오류를 모두 지운다 */
+export function clearFieldErrors(form) {
+  for (const err of form.querySelectorAll('.field > .error')) {
+    err.hidden = true;
+    err.textContent = '';
+  }
+  for (const input of form.querySelectorAll('[aria-invalid]')) {
+    input.removeAttribute('aria-invalid');
+    const ids = (input.getAttribute('aria-describedby') || '').split(' ').filter((x) => x && x !== `${input.id}-err`);
+    if (ids.length) input.setAttribute('aria-describedby', ids.join(' '));
+    else input.removeAttribute('aria-describedby');
+  }
 }
 
 /**

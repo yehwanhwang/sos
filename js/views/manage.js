@@ -1,10 +1,9 @@
-// 설정: 내 이름, 연결, 보낸 링크, 급할 때, 밝게 보기, 로그아웃과 지우기.
+// 설정: 내 이름, 연결, 보낸 링크, 급할 때, 로그아웃과 지우기. 화면의 밝기와 글자 크기는 폰 설정을 따른다(app.css).
 // 화면에는 줄만 두고, 내보내기·나가기 같은 일은 줄을 눌러 열리는 창 안에 둔다(잘못 누르지 않게).
 import * as api from '../api.js';
 import { h, fill, icon, avatar, sheet, confirm, run, toast, fmtDay } from '../ui.js';
 import { inviteUrl, untilDay } from '../model.js';
 import { backLink, row, addRow, linkSheet, nameSheet } from './forms.js';
-import { theme } from '../theme-switch.js';
 
 /** 확인을 받은 다음 서버 함수를 부르는 버튼 */
 function actionButton(label, cls, ask, fn) {
@@ -121,12 +120,6 @@ export async function manageView(page, { refresh, go, up }) {
     }),
   ]);
 
-  // ── 밝게 보기(이 폰에만) ──
-  const light = h('input', {
-    type: 'checkbox', role: 'switch', id: 'light-mode', checked: theme.get() === 'light',
-    onchange: () => theme.set(light.checked ? 'light' : 'dark'),
-  });
-
   const logout = h('button', {
     class: 'btn text small', type: 'button',
     onclick: () => run(logout, async () => {
@@ -177,12 +170,6 @@ export async function manageView(page, { refresh, go, up }) {
     h('div', { class: 'card' }, h('ul', { class: 'list' }, h('li', null, addRow('가족 연결하기', '#/connect')))),
     section('급할 때', 0, [
       row({ href: '#/prepare', lead: tile('info'), title: '급할 때 바로 찾게', sub: '대화방 공지, 전화 앱에 저장' }),
-    ]),
-    section('화면', 0, [
-      h('label', { class: 'row switch-row', for: 'light-mode' },
-        tile('eye'),
-        h('span', { class: 'row-text' }, h('span', { class: 'row-title' }, '밝게 보기'), h('span', { class: 'row-sub' }, '햇빛 아래에서 잘 안 보일 때. 이 폰에만 적용돼요.')),
-        light),
     ]),
     h('div', { class: 'row-actions center' }, logout, wipe),
     h('p', { class: 'fine center' }, h('a', { class: 'link', href: 'privacy.html' }, '개인정보 처리방침')));
