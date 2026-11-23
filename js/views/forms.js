@@ -1,6 +1,7 @@
 // 여러 화면에서 쓰는 조각: 뒤로 링크, 목록의 한 줄, 입력 칸, 소속 고르기, 이름 받는 창, 링크 보내는 창.
 import { h, icon, sheet, run, toast, errorText, share, canShare, copyText, flash } from '../ui.js';
 import { TAGS, untilDay, inviteText } from '../model.js';
+import { formatTyping } from '../phone.js';
 
 let seq = 0;
 
@@ -54,6 +55,23 @@ export function field(label, input, hint = '') {
 }
 
 /** 전화번호 오류 문구. 예로 든 번호는 가운데서 줄을 바꾸지 않는다. */
+/**
+ * 전화번호 칸: 숫자만 눌러도 하이픈이 따라 들어간다.
+ * 끝에서 적을 때만 고친다(가운데를 고치는 동안에는 커서가 튀지 않게 두고, 칸을 떠날 때 맞춘다).
+ */
+export function phoneInput(attrs) {
+  const input = h('input', { class: 'input', type: 'tel', inputmode: 'tel', ...attrs });
+  const tidy = () => {
+    const next = formatTyping(input.value);
+    if (next !== input.value) input.value = next;
+  };
+  input.addEventListener('input', () => {
+    if (input.selectionStart === input.value.length) tidy();
+  });
+  input.addEventListener('change', tidy);
+  return input;
+}
+
 export const phoneError = () => ['전화번호를 확인해 주세요. ', h('span', { class: 'nowrap' }, '예: 010-1234-5678')];
 
 /** 그 칸 바로 아래에 오류를 보여 주고 칸으로 초점을 옮긴다. 칸에 aria-invalid 를 달고 오류 문구와 잇는다. */

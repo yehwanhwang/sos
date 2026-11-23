@@ -6,7 +6,7 @@ import * as api from '../api.js';
 import { h, fill, icon, avatar, phrases, sheet, confirm, run, toast, errorText, fmtDateTime, share } from '../ui.js';
 import { formatPhone, normalizePhone, telHref } from '../phone.js';
 import { CONTACT_LIMIT, checkedText, askCheckText, askAddText, siteUrl } from '../model.js';
-import { backLink, addRow, tagPicker, field, fieldError, clearFieldErrors, phoneError } from './forms.js';
+import { backLink, addRow, tagPicker, field, fieldError, clearFieldErrors, phoneError, phoneInput } from './forms.js';
 
 export async function personView(page, { id, up, refresh }) {
   const p = await api.rpc('person_get', { id });
@@ -44,7 +44,8 @@ export async function personView(page, { id, up, refresh }) {
         h('h2', { class: 'section-title' }, p.is_me ? '내 비상연락처' : '비상연락처', n ? h('span', { class: 'count' }, ` ${n}`) : null),
         checked),
       h('div', { class: 'card' }, list),
-      p.is_me ? null
+      // 폰 연락처에서 고른 분은 이름과 번호만 들어온다. 어디 분인지는 여기서 줄을 눌러 적는다.
+      p.is_me ? (p.contacts.some((c) => !c.tag) ? h('p', { class: 'fine tag-hint' }, '줄을 누르면 어디 분인지(회사, 교회 등) 적을 수 있어요.') : null)
         // 부탁 글의 링크는 그 일을 하는 화면으로 바로 간다(넣기, 점검). 받은 사람이 어디를 눌러야 할지 찾지 않게.
         : !n ? askButton(`${p.name}님에게 넣어 달라고 부탁하기`, askAddText(p.name), '#/add')
           : p.checked.stale ? askButton(`${p.name}님에게 확인 부탁하기`, askCheckText(p.name), '#/check') : null),
@@ -85,7 +86,7 @@ function askButton(label, text, where) {
 function editSheet(c, refresh) {
   return sheet('연락처 고치기', (close) => {
     const name = h('input', { class: 'input', id: 'edit-name', value: c.name, maxlength: 30, autocomplete: 'off' });
-    const phone = h('input', { class: 'input', id: 'edit-phone', type: 'tel', inputmode: 'tel', value: formatPhone(c.phone), autocomplete: 'off' });
+    const phone = phoneInput({ id: 'edit-phone', value: formatPhone(c.phone), autocomplete: 'off' });
     const tags = tagPicker(c.tag);
     const err = h('p', { class: 'error', role: 'alert', hidden: true });
     const save = h('button', { class: 'btn block', type: 'submit' }, '저장');

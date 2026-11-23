@@ -38,6 +38,24 @@ export function formatPhone(p) {
   return p;
 }
 
+/**
+ * 적는 동안의 표기: 숫자만 눌러도 하이픈이 따라 들어간다. "0101234" → "010-1234", "01012345678" → "010-1234-5678".
+ * 끝에 하이픈을 남기지 않아 지울 때 걸리지 않는다. 해외 번호(+)와 숫자가 아닌 글이 섞인 것은 손대지 않는다.
+ */
+export function formatTyping(value) {
+  const raw = String(value ?? '');
+  if (/[^\d\s()-]/.test(raw)) return raw;
+  const d = raw.replace(/\D/g, '');
+  const head = d.startsWith('02') ? 2 : /^050\d/.test(d) ? 4 : d.startsWith('0') ? 3 : /^1[5-9]/.test(d) ? 4 : 0;
+  if (!head || d.length <= head) return d;
+  const rest = d.slice(head);
+  if (!d.startsWith('0')) return `${d.slice(0, head)}-${rest}`; // 대표번호 15XX-XXXX
+  // 가운데 자리: 010은 늘 네 자리다. 그 밖(02, 031, 011 등)은 일곱 자리까지 세 자리, 여덟 자리면 네 자리.
+  const mid = d.startsWith('010') || rest.length >= 8 ? 4 : 3;
+  if (rest.length <= mid) return `${d.slice(0, head)}-${rest}`;
+  return `${d.slice(0, head)}-${rest.slice(0, mid)}-${rest.slice(mid)}`;
+}
+
 const LABELS = /(휴대전화|휴대폰|핸드폰|전화번호|연락처|전화|모바일|mobile|phone|tel|cell|이름|성명|name)\s*[:：]?/gi;
 
 /**

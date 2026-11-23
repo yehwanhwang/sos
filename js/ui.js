@@ -93,8 +93,8 @@ export function avatar(name, cls = '') {
 export const phrases = (...parts) => parts.flatMap((part, i) => [i ? ' ' : null, h('span', { class: 'keep' }, part)]);
 
 // ── 알림(화면 아래쪽에 잠깐) ──────────────────────────────────────────────────────
-// 위쪽에 두면 '‹ 뒤로'와 화면 제목을 가린다. 그래서 아래쪽에 두되, 아래에 붙은 버튼 줄(고른 분 넣기)이 있으면 그 위로,
-// 창이 열려 있으면 창을 가리지 않게 화면 위쪽(가려진 화면 쪽)에 띄운다. 알림은 누르는 것을 막지 않는다.
+// 위쪽에 두면 '‹ 뒤로'와 화면 제목을 가린다. 그래서 아래쪽에 두되, 창이 열려 있으면 창을 가리지 않게
+// 화면 위쪽(가려진 화면 쪽)에 띄운다. 알림은 누르는 것을 막지 않는다.
 // 알림 자리는 처음부터 만들어 둔다(화면 읽기 프로그램은 미리 있던 자리에 들어온 글만 읽어 준다).
 
 const toastHost = typeof document?.createElement === 'function' && document.body
@@ -103,16 +103,9 @@ const toastHost = typeof document?.createElement === 'function' && document.body
 if (toastHost) document.body.append(toastHost);
 let toastTimer = 0;
 
-/** 알림 자리를 정한다: 창이 열려 있으면 위, 아니면 아래(아래에 붙은 버튼 줄이 보이면 그 위) */
+/** 알림 자리를 정한다: 창이 열려 있으면 위, 아니면 아래 */
 function placeToasts() {
-  if (!toastHost) return;
-  toastHost.classList.toggle('over-sheet', openSheets.length > 0);
-  let lift = 0;
-  for (const bar of document.querySelectorAll('.savebar')) {
-    const r = bar.getBoundingClientRect();
-    if (r.height && r.top < innerHeight && r.bottom > innerHeight - 4) lift = Math.max(lift, innerHeight - r.top);
-  }
-  toastHost.style.setProperty('--toast-lift', `${Math.round(lift)}px`);
+  toastHost?.classList.toggle('over-sheet', openSheets.length > 0);
 }
 
 export function toast(message, ms = 3200) {
@@ -368,7 +361,7 @@ const MESSAGES = {
   invite_gone: '닫힌 링크예요. 보낸 분이 거뒀어요.',
   invite_expired: '7일이 지나 닫힌 링크예요. 보낸 분께 새 링크를 받아 주세요.',
   own_invite: '내가 보낸 링크예요. 가족에게 보내 주세요.',
-  picker_failed: '폰 연락처를 열지 못했어요. 아래 칸에 직접 적어 주세요.',
+  picker_failed: '이 브라우저에서는 폰 연락처를 열지 못해요. 아래 칸에 직접 적어 주세요.',
   server_error: '서버에서 처리하지 못했어요. 잠시 뒤 다시 해 주세요.',
   too_many_requests: '요청이 너무 잦아요. 잠시 뒤 다시 해 주세요.',
   bad_request: '보낸 값이 올바르지 않아요.',

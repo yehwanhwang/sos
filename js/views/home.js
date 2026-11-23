@@ -6,8 +6,8 @@
 // 준비는 세 가지다(내 비상연락처 → 가족 연결 → 급할 때 찾는 길). 끝낸 것은 다시 보여 주지 않고,
 // 같은 일을 두 군데에 두지 않는다(비어 있는 '나'와 '가족'은 준비 카드가 대신한다).
 import * as api from '../api.js';
-import { h, fill, icon, avatar, phrases, sheet, run, toast, share, fmtDateTime } from '../ui.js';
-import { checkedText, names, knockedText, siteUrl } from '../model.js';
+import { h, fill, icon, avatar, phrases, sheet, run, toast, fmtDateTime } from '../ui.js';
+import { checkedText, names } from '../model.js';
 import { row, addRow } from './forms.js';
 
 export async function homeView(page, { home, from, refresh }) {
@@ -37,8 +37,7 @@ export async function homeView(page, { home, from, refresh }) {
       waiting.map((w) => (w.status === 'pending'
         ? h('div', { class: 'wait' },
           h('p', { class: 'wait-title' }, `${w.from}님이 받아 주면 열려요`),
-          h('p', { class: 'muted' }, '링크를 눌렀다고 알려 주면 빨라요.'),
-          tellButton(w))
+          h('p', { class: 'muted' }, `${w.from}님이 비상연락망을 열면 받아 줘요. 더 할 일은 없어요.`))
         : h('div', { class: 'wait' },
           h('p', { class: 'wait-title' }, `${w.from}님이 받지 않았어요`),
           h('p', { class: 'muted' }, `잘못 누른 거라면 ${w.from}님께 새 링크를 받아 주세요.`)))))
@@ -132,17 +131,6 @@ export async function homeView(page, { home, from, refresh }) {
     connected ? [checkCard, family, waitingCard, mine, setup] : [waitingCard, checkCard, setup, mine]);
 }
 
-/** "카톡으로 알리기": 링크를 보낸 사람에게 눌렀다고 알린다 */
-function tellButton(w) {
-  const btn = h('button', {
-    class: 'btn soft small', type: 'button',
-    onclick: () => run(btn, async () => {
-      const how = await share({ text: knockedText(w.from), url: siteUrl() });
-      if (how === 'copied') toast('글을 복사했어요. 카톡 대화방에 붙여 넣어 주세요.');
-    }),
-  }, icon('chat'), '카톡으로 알리기');
-  return btn;
-}
 
 /**
  * 받아 주기 창. 이 링크로 먼저 들어온 사람이 없으면 받기 / 안 받기 둘,

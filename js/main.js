@@ -15,6 +15,7 @@
 import * as api from './api.js';
 import { h, clear, toast, errorText, closeAllSheets, takeSheetEntry } from './ui.js';
 import { welcomeView, startView, joinView, peekInvite } from './views/welcome.js';
+import { waysOut, isAndroid } from './device.js';
 import { homeView } from './views/home.js';
 import { personView } from './views/person.js';
 import { addView } from './views/add.js';
@@ -217,14 +218,51 @@ function focusHeading(page) {
   h1.focus({ preventScroll: true });
 }
 
-function message(title, body, actionLabel = '처음으로', action = () => go('/', { replace: true })) {
+function message(title, body, actionLabel = '처음으로', action = () => go('/', { replace: true }), other = null) {
   return show((page) => {
     clear(page,
       h('div', { class: 'notice-page' },
         h('h1', null, title),
         h('p', { class: 'lead' }, body),
-        h('button', { class: 'btn block', type: 'button', onclick: action }, actionLabel)));
+        h('button', { class: 'btn block', type: 'button', onclick: action }, actionLabel),
+        other ? h('button', { class: 'btn text block', type: 'button', onclick: other.action }, other.label) : null));
   }, {}, 'message');
+}
+
+// ── 앱 안 화면(카카오톡 등)에서 열렸으면 폰의 브라우저로 넘어간다 ─────────────────────────────
+// 카카오톡 안 화면에서는 폰 연락처를 고를 수 없고 로그인도 따로 남는다. 묻지 않고 크롬(아이폰은 사파리)으로 연다.
+// 한 탭에서 한 번만 한다(넘어가지 못한 폰에서 맴돌지 않게). 돌아와 보면 다시 여는 버튼과 여기서 쓰는 길이 있다.
+const LEFT_KEY = 'famsos.left';
+
+function leaveInApp() {
+  if (globalThis.FAMSOS_CONFIG?.DEMO) return false;
+  const ways = waysOut();
+  if (!ways.length) return false;
+  let state;
+  try {
+    state = sessionStorage.getItem(LEFT_KEY);
+    if (state === 'stay') return false;
+    sessionStorage.setItem(LEFT_KEY, 'left');
+  } catch {
+    return false; // 기억해 둘 곳이 없으면 맴돌 수 있으니 여기서 쓴다
+  }
+  const open = globalThis.FAMSOS_OPEN || ((href) => { location.href = href; });
+  // 크롬이 열리면 이 화면은 가려진다. 1.5초 뒤에도 보이고 있으면 다음 길(기본 브라우저)로 연다.
+  const leave = () => ways.forEach((href, i) => setTimeout(() => { if (i === 0 || !document.hidden) open(href); }, i * 1500));
+  const browser = isAndroid() ? '크롬' : '사파리';
+  message(`${browser}에서 열어요`, `비상연락망은 ${browser}에서 열려요. 넘어가지 않으면 아래 버튼을 눌러 주세요.`, `${browser}에서 열기`, leave, {
+    label: '여기서 계속하기',
+    action: () => {
+      try {
+        sessionStorage.setItem(LEFT_KEY, 'stay');
+      } catch {
+        /* 무시 */
+      }
+      location.reload();
+    },
+  });
+  if (state !== 'left') leave();
+  return true;
 }
 
 async function routeOnce({ keepScroll = false, cached = false } = {}) {
@@ -338,6 +376,7 @@ async function boot() {
     return message('새 창에서 열어 주세요', '비상연락망은 다른 페이지 안에서는 열리지 않아요.', '새 창에서 열기',
       () => window.open(location.href, '_blank', 'noopener'));
   }
+  if (leaveInApp()) return; // 초대 링크(#j=…)를 주소에 둔 채로 넘어간다
   captureInvite();
   if (!api.configured()) {
     return message('설정이 필요해요', 'config.js 에 Apps Script 웹 앱 주소(API_URL)와 카카오 REST API 키를 넣어 주세요. 방법은 README에 있어요.', '다시 열기', () => location.reload());
@@ -359,10 +398,13 @@ async function boot() {
     row.querySelector('[data-morph-title]')?.classList.add('morph-src');
   });
   // 오래 다른 앱에 있다가 돌아오면 가족이 고친 내용을 다시 읽는다(시트를 열어 둔 동안은 두고).
+  // 목록을 보는 화면에서만 한다. 넣기나 설정처럼 적는 화면을 다시 그리면 적던 것이 지워진다
+  // (카톡에서 번호를 복사해 오거나, 폰 연락처 화면에서 오래 고르다 돌아왔을 때).
+  const rereadable = () => shown === '/' || (typeof shown === 'string' && shown.startsWith('/p/'));
   let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) hiddenAt = Date.now();
-    else if (hiddenAt && Date.now() - hiddenAt > 60_000 && !document.querySelector('.backdrop') && api.getSession()) {
+    else if (hiddenAt && Date.now() - hiddenAt > 60_000 && rereadable() && !document.querySelector('.backdrop') && api.getSession()) {
       route({ keepScroll: true });
     }
   });
